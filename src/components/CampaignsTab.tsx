@@ -67,6 +67,8 @@ export default function CampaignsTab({ campaigns, accounts, contacts, onRefresh 
   const [selectedSenders, setSelectedSenders] = useState<string[]>([]);
   const [emailsPerHour, setEmailsPerHour] = useState(1000); 
   const [customDelay, setCustomDelay] = useState(45);
+  const [replyTo, setReplyTo] = useState('');
+  const [senderName, setSenderName] = useState('');
 
   // Template active view field toggle: 'subject' / 'body'
   const [templateField, setTemplateField] = useState<'subject' | 'body'>('body');
@@ -83,6 +85,8 @@ export default function CampaignsTab({ campaigns, accounts, contacts, onRefresh 
   const [editName, setEditName] = useState('');
   const [editDelaySeconds, setEditDelaySeconds] = useState(10);
   const [editPerHour, setEditPerHour] = useState(100);
+  const [editReplyTo, setEditReplyTo] = useState('');
+  const [editSenderName, setEditSenderName] = useState('');
 
   // Expanded logs view trigger
   const [expandedCampaignId, setExpandedCampaignId] = useState<string | null>(null);
@@ -277,7 +281,9 @@ export default function CampaignsTab({ campaigns, accounts, contacts, onRefresh 
       totalContacts: finalContactsCount > 0 ? finalContactsCount : 500,
       senderEmails: selectedSenders,
       emailsPerHourPerAccount: emailsPerHour,
-      delaySeconds: customDelay
+      delaySeconds: customDelay,
+      replyTo: replyTo.trim() || undefined,
+      senderName: senderName.trim() || undefined
     };
 
     try {
@@ -439,6 +445,8 @@ export default function CampaignsTab({ campaigns, accounts, contacts, onRefresh 
         name: editName,
         subject: editSubject,
         bodyTemplate: editBody,
+        replyTo: editReplyTo.trim() || undefined,
+        senderName: editSenderName.trim() || undefined,
       };
 
       if (editingCampaign.type === 'normal') {
@@ -930,6 +938,38 @@ export default function CampaignsTab({ campaigns, accounts, contacts, onRefresh 
                     className="w-full bg-[#FAFAFD] border border-[#EBEBEF] rounded-xl px-4 py-2.5 text-xs text-center font-bold focus:outline-none focus:border-[#7C5CFC]"
                   />
                 </div>
+
+                {/* Reply-To field */}
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-gray-500 font-medium">Reply-To Email</span>
+                    <span className="text-[10px] text-gray-400">Optional</span>
+                  </div>
+                  <input
+                    type="email"
+                    placeholder="replies@yourdomain.com"
+                    value={replyTo}
+                    onChange={(e) => setReplyTo(e.target.value)}
+                    className="w-full bg-[#FAFAFD] border border-[#EBEBEF] rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:border-[#7C5CFC]"
+                  />
+                  <p className="text-[10px] text-gray-400">Replies will be directed to this address instead of the sender.</p>
+                </div>
+
+                {/* Sender Name field */}
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-gray-500 font-medium">Sender Display Name</span>
+                    <span className="text-[10px] text-gray-400">Optional</span>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Your Company Name"
+                    value={senderName}
+                    onChange={(e) => setSenderName(e.target.value)}
+                    className="w-full bg-[#FAFAFD] border border-[#EBEBEF] rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:border-[#7C5CFC]"
+                  />
+                  <p className="text-[10px] text-gray-400">Overrides the default Gmail display name for this campaign.</p>
+                </div>
               </div>
 
               {/* ITERATION STATS */}
@@ -1107,6 +1147,8 @@ export default function CampaignsTab({ campaigns, accounts, contacts, onRefresh 
                             setEditBody(c.bodyTemplate);
                             setEditDelaySeconds(c.delaySeconds);
                             setEditPerHour(c.emailsPerHourPerAccount || 100);
+                            setEditReplyTo((c as any).replyTo || '');
+                            setEditSenderName((c as any).senderName || '');
                           }}
                           className="p-2 text-gray-500 hover:bg-gray-150 rounded-xl transition-all"
                           title="Settings"
@@ -1493,6 +1535,30 @@ export default function CampaignsTab({ campaigns, accounts, contacts, onRefresh 
                   value={editBody}
                   onChange={(e) => setEditBody(e.target.value)}
                   className="w-full bg-[#FAFAFD] border border-[#EBEBEF] rounded-2xl p-3.5 text-xs text-sans focus:outline-none focus:border-[#7C5CFC] resize-none leading-relaxed"
+                />
+              </div>
+
+              {/* Reply-To field */}
+              <div className="space-y-1">
+                <label className="block text-xs font-semibold text-gray-500">Reply-To Email <span className="text-gray-400 font-normal">(optional)</span></label>
+                <input
+                  type="email"
+                  placeholder="replies@yourdomain.com"
+                  value={editReplyTo}
+                  onChange={(e) => setEditReplyTo(e.target.value)}
+                  className="w-full bg-[#FAFAFD] border border-[#EBEBEF] rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:border-[#7C5CFC]"
+                />
+              </div>
+
+              {/* Sender Name field */}
+              <div className="space-y-1">
+                <label className="block text-xs font-semibold text-gray-500">Sender Display Name <span className="text-gray-400 font-normal">(optional)</span></label>
+                <input
+                  type="text"
+                  placeholder="Your Company Name"
+                  value={editSenderName}
+                  onChange={(e) => setEditSenderName(e.target.value)}
+                  className="w-full bg-[#FAFAFD] border border-[#EBEBEF] rounded-xl px-3.5 py-2 text-xs focus:outline-none focus:border-[#7C5CFC]"
                 />
               </div>
 
