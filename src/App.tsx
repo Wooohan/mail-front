@@ -269,6 +269,7 @@ export default function App() {
               accounts={accounts}
               loading={loadingAccounts}
               onRefresh={fetchAccounts}
+              isAdmin={isAdmin()}
             />
           )}
 
