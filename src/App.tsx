@@ -1,36 +1,44 @@
 import React, { useEffect, useState } from 'react';
-import { api } from './api';
+import { api, isAuthenticated, isAdmin, getStoredUser, authApi, AuthUser } from './api';
+import AuthPage from './components/AuthPage';
 import AccountsTab from './components/AccountsTab';
 import ContactsTab from './components/ContactsTab';
 import CampaignsTab from './components/CampaignsTab';
 import DashboardTab from './components/DashboardTab';
 import EmailValidationTab from './components/EmailValidationTab';
+import AdminPanel from './components/AdminPanel';
 import { GmailAccount, Contact, Campaign } from './types';
-import { Mail, Users, Layers, Send, RefreshCw, Menu, X, LayoutDashboard, ShieldCheck } from 'lucide-react';
+import { Mail, Users, Layers, RefreshCw, Menu, X, LayoutDashboard, ShieldCheck, Shield, LogOut } from 'lucide-react';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('dashboard'); // Set Default to dashboard greeting card
+  const [authenticated, setAuthenticated] = useState(isAuthenticated());
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(getStoredUser());
+  const [activeTab, setActiveTab] = useState('dashboard');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Core database pulled states
   const [accounts, setAccounts] = useState<GmailAccount[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
 
-  // Loading indicator states
   const [loadingAccounts, setLoadingAccounts] = useState(false);
   const [loadingContacts, setLoadingContacts] = useState(false);
   const [loadingCampaigns, setLoadingCampaigns] = useState(false);
 
-  // Fetch Accounts list
+  useEffect(() => {
+    const handleLogout = () => {
+      setAuthenticated(false);
+      setCurrentUser(null);
+      setActiveTab('dashboard');
+    };
+    window.addEventListener('auth:logout', handleLogout);
+    return () => window.removeEventListener('auth:logout', handleLogout);
+  }, []);
+
   const fetchAccounts = async () => {
     setLoadingAccounts(true);
     try {
       const res = await api('/api/accounts');
-      if (res.ok) {
-        const data = await res.json();
-        setAccounts(data);
-      }
+      if (res.ok) setAccounts(await res.json());
     } catch (err) {
       console.error('Failed fetching Gmail accounts:', err);
     } finally {
@@ -38,15 +46,11 @@ export default function App() {
     }
   };
 
-  // Fetch Contacts list
   const fetchContacts = async () => {
     setLoadingContacts(true);
     try {
       const res = await api('/api/contacts');
-      if (res.ok) {
-        const data = await res.json();
-        setContacts(data);
-      }
+      if (res.ok) setContacts(await res.json());
     } catch (err) {
       console.error('Failed fetching contacts:', err);
     } finally {
@@ -54,15 +58,11 @@ export default function App() {
     }
   };
 
-  // Fetch Campaigns list
   const fetchCampaigns = async () => {
     setLoadingCampaigns(true);
     try {
       const res = await api('/api/campaigns');
-      if (res.ok) {
-        const data = await res.json();
-        setCampaigns(data);
-      }
+      if (res.ok) setCampaigns(await res.json());
     } catch (err) {
       console.error('Failed fetching campaigns:', err);
     } finally {
@@ -70,39 +70,38 @@ export default function App() {
     }
   };
 
-  // Reset entire database
-  const handleResetAll = async () => {
-    try {
-      const res = await api('/api/reset-all', { method: 'POST' });
-      if (res.ok) {
-        setAccounts([]);
-        setContacts([]);
-        setCampaigns([]);
-        setActiveTab('accounts');
-      }
-    } catch (err) {
-      console.error('Failed reset operation:', err);
-    }
-  };
-
-  // Initial load
   useEffect(() => {
-    fetchAccounts();
-    fetchContacts();
-    fetchCampaigns();
-  }, []);
+    if (authenticated) {
+      fetchAccounts();
+      fetchContacts();
+      fetchCampaigns();
+    }
+  }, [authenticated]);
 
-  // Poll for live metrics if there are any active campaign running!
   useEffect(() => {
     const hasRunningCampaign = campaigns.some(c => c.status === 'running');
     if (!hasRunningCampaign) return;
-
-    const interval = setInterval(() => {
-      fetchCampaigns();
-    }, 4000);
-
+    const interval = setInterval(() => { fetchCampaigns(); }, 4000);
     return () => clearInterval(interval);
   }, [campaigns]);
+
+  const handleAuthSuccess = () => {
+    setAuthenticated(true);
+    setCurrentUser(getStoredUser());
+  };
+
+  const handleLogout = () => {
+    authApi.logout();
+    setAuthenticated(false);
+    setCurrentUser(null);
+    setAccounts([]);
+    setContacts([]);
+    setCampaigns([]);
+  };
+
+  if (!authenticated) {
+    return <AuthPage onAuthSuccess={handleAuthSuccess} />;
+  }
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -110,16 +109,15 @@ export default function App() {
     { id: 'contacts', label: 'Contacts', icon: Users },
     { id: 'accounts', label: 'Accounts', icon: Mail },
     { id: 'validator', label: 'Email Validator', icon: ShieldCheck },
+    ...(currentUser?.role === 'admin' ? [{ id: 'admin', label: 'Admin Panel', icon: Shield }] : []),
   ];
 
   return (
     <div className="min-h-screen bg-[#FAFAFD] flex flex-col md:flex-row">
       
-      {/* 1. DESKTOP SIDEBAR - Hidden on mobile */}
+      {/* DESKTOP SIDEBAR */}
       <aside className="hidden md:flex md:w-64 bg-white border-r border-[#EBEBEF] flex-col justify-between py-8 px-6 shrink-0 h-screen sticky top-0">
         <div className="space-y-8">
-          
-          {/* Logo brand */}
           <div className="flex items-center space-x-3">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#7C5CFC] to-[#9175FE] flex items-center justify-center text-white font-medium shadow-sm">
               <Mail className="w-5 h-5 text-white" />
@@ -131,7 +129,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* Navigation Links */}
           <nav className="space-y-1.5">
             {navItems.map((item) => {
               const Icon = item.icon;
@@ -139,7 +136,6 @@ export default function App() {
               return (
                 <button
                   key={item.id}
-                  id={`sidebar-tab-${item.id}`}
                   onClick={() => {
                     setActiveTab(item.id);
                     if (item.id === 'accounts') fetchAccounts();
@@ -160,44 +156,42 @@ export default function App() {
           </nav>
         </div>
 
-        {/* Plan card widget & Reset Data option */}
-        <div className="space-y-5">
-          {/* Current plan card */}
-          <div className="bg-[#7C5CFC] text-white rounded-2xl p-4 space-y-3.5 shadow-sm">
-            <div className="space-y-0.5">
-              <p className="text-[9px] font-bold tracking-widest text-indigo-200 uppercase">CURRENT PLAN</p>
-              <h4 className="font-display font-semibold text-sm">Pro Campaigner</h4>
+        <div className="space-y-4">
+          <div className="bg-gray-50 rounded-2xl p-4 space-y-2">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-[#7C5CFC] flex items-center justify-center text-white text-xs font-bold">
+                {(currentUser?.name || currentUser?.email || '?')[0].toUpperCase()}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-800 truncate">{currentUser?.name || 'User'}</p>
+                <p className="text-xs text-gray-400 truncate">{currentUser?.email}</p>
+              </div>
             </div>
-            <div className="w-full bg-[#6948EC] h-1 rounded-full overflow-hidden">
-              <div className="bg-white h-full w-[70%] rounded-full"></div>
-            </div>
+            {currentUser?.role === 'admin' && (
+              <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-600 uppercase tracking-wider">Admin</span>
+            )}
           </div>
 
           <button
-            onClick={() => {
-              if (window.confirm('Are you sure you want to reset all records? Doing so deletes all campaigns, contacts, and linked sender inboxes.')) {
-                handleResetAll();
-              }
-            }}
-            className="w-full flex items-center justify-center space-x-1.5 px-3 py-2 text-xs font-medium text-red-500 hover:bg-red-50 hover:text-red-600 rounded-xl transition-colors border border-dashed border-red-200 cursor-pointer"
+            onClick={handleLogout}
+            className="w-full flex items-center justify-center space-x-1.5 px-3 py-2.5 text-xs font-medium text-red-500 hover:bg-red-50 hover:text-red-600 rounded-xl transition-colors border border-dashed border-red-200 cursor-pointer"
           >
-            <RefreshCw className="w-3.5 h-3.5" />
-            <span>Developer Reset</span>
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Sign Out</span>
           </button>
         </div>
       </aside>
 
-      {/* 2. MOBILE HEADER - Sticky top */}
+      {/* MOBILE HEADER */}
       <header className="md:hidden sticky top-0 z-50 bg-white border-b border-[#EBEBEF] px-4 py-3.5 flex items-center justify-between">
         <div className="flex items-center space-x-2.5">
           <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-[#7C5CFC] to-[#9175FE] flex items-center justify-center text-white">
-            <Mail className="w-4.5 h-4.5 text-white" />
+            <Mail className="w-4 h-4 text-white" />
           </div>
           <span className="font-display font-bold text-base tracking-tight text-gray-950">
             EQUINOX<span className="text-[#96969B] font-[400] text-xs ml-0.5 tracking-wider">MAIL</span>
           </span>
         </div>
-
         <button
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           className="p-1 rounded-lg text-gray-500 hover:bg-gray-50"
@@ -206,7 +200,7 @@ export default function App() {
         </button>
       </header>
 
-      {/* MOBILE POPUP NAVIGATION ACCORDION */}
+      {/* MOBILE NAVIGATION */}
       {mobileMenuOpen && (
         <div className="md:hidden fixed inset-0 top-[53px] bg-white z-40 p-6 flex flex-col justify-between border-t border-[#EBEBEF]">
           <nav className="space-y-2">
@@ -224,9 +218,7 @@ export default function App() {
                     if (item.id === 'campaigns' || item.id === 'dashboard') fetchCampaigns();
                   }}
                   className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
-                    isActive
-                      ? 'bg-[#F2EFFE] text-[#7C5CFC]'
-                      : 'text-gray-600 hover:bg-gray-50'
+                    isActive ? 'bg-[#F2EFFE] text-[#7C5CFC]' : 'text-gray-600 hover:bg-gray-50'
                   }`}
                 >
                   <Icon className={`w-4 h-4 ${isActive ? 'text-[#7C5CFC]' : 'text-gray-400'}`} />
@@ -237,35 +229,30 @@ export default function App() {
           </nav>
           
           <div className="space-y-4">
-            <div className="bg-[#7C5CFC] text-white rounded-2xl p-4 space-y-3.5">
-              <div className="space-y-0.5">
-                <p className="text-[9px] font-bold tracking-widest text-[#D3C7FE] uppercase">CURRENT PLAN</p>
-                <h4 className="font-semibold text-sm">Pro Campaigner</h4>
-              </div>
-              <div className="w-full bg-[#6948EC] h-1 rounded-full overflow-hidden">
-                <div className="bg-white h-full w-[70%] rounded-full"></div>
+            <div className="bg-gray-50 rounded-2xl p-4">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-[#7C5CFC] flex items-center justify-center text-white text-xs font-bold">
+                  {(currentUser?.name || currentUser?.email || '?')[0].toUpperCase()}
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-800">{currentUser?.name || 'User'}</p>
+                  <p className="text-xs text-gray-400">{currentUser?.email}</p>
+                </div>
               </div>
             </div>
-
             <button
-              onClick={() => {
-                if (window.confirm('Delete all records?')) {
-                  handleResetAll();
-                  setMobileMenuOpen(false);
-                }
-              }}
+              onClick={() => { handleLogout(); setMobileMenuOpen(false); }}
               className="w-full flex items-center justify-center space-x-1.5 px-3 py-2.5 text-xs font-semibold text-red-500 hover:bg-red-50 rounded-xl border border-dashed border-red-200"
             >
-              <RefreshCw className="w-3.5 h-3.5" />
-              <span>Full Reset</span>
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Sign Out</span>
             </button>
           </div>
         </div>
       )}
 
-      {/* 3. MAIN WORKSPACE CONTENT */}
+      {/* MAIN CONTENT */}
       <div className="flex-1 flex flex-col justify-between min-h-screen">
-        
         <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           
           {activeTab === 'dashboard' && (
@@ -273,11 +260,7 @@ export default function App() {
               accounts={accounts}
               contacts={contacts}
               campaigns={campaigns}
-              onRefreshAll={() => {
-                fetchAccounts();
-                fetchContacts();
-                fetchCampaigns();
-              }}
+              onRefreshAll={() => { fetchAccounts(); fetchContacts(); fetchCampaigns(); }}
             />
           )}
 
@@ -312,19 +295,21 @@ export default function App() {
             />
           )}
 
+          {activeTab === 'admin' && currentUser?.role === 'admin' && (
+            <AdminPanel />
+          )}
+
         </main>
 
-        {/* Humanized Literal Footer */}
         <footer className="bg-white border-t border-[#F0F0F3] py-5 text-center text-[11px] text-[#A3A3AF] font-mono mt-12 shrink-0">
           <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
             <span className="font-semibold text-[#7C5CFC]/85 flex items-center justify-center sm:justify-start gap-1">
-              <Send className="w-3 h-3" /> Equinox Mail Setup
+              <Mail className="w-3 h-3" /> Equinox Mail v2.0
             </span>
-            <span>© 2026 Equinox Systems — Standard Multi-Account Rotation & Rate Pacing Outbox Manager.</span>
+            <span>Multi-Tenant Email Campaign Platform with Admin Controls</span>
           </div>
         </footer>
       </div>
-
     </div>
   );
 }
