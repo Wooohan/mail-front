@@ -978,7 +978,7 @@ export default function CampaignsTab({ campaigns, accounts, contacts, onRefresh 
                   ITERATION STATS
                 </span>
 
-                <div className="grid grid-cols-2 gap-35">
+                <div className="grid grid-cols-2 gap-3">
                   {/* Stat block 1 */}
                   <div className="bg-[#FAFAFD] border border-[#EBEBEF] rounded-2xl p-4 text-center space-y-1">
                     <p className="text-[9px] font-black text-gray-400 uppercase tracking-wider">CYCLE TIME</p>
