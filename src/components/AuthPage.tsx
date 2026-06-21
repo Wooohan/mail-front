@@ -143,9 +143,13 @@ export default function AuthPage({ onAuthSuccess }: AuthPageProps) {
           </div>
         </div>
 
-        <p className="text-center text-xs text-gray-400 mt-6">
-          © 2026 Equinox Mail — Secure Multi-Tenant Email Platform
-        </p>
+    <p className="text-center text-xs text-gray-400 mt-6 flex items-center justify-center gap-1 flex-wrap">
+  <span>© 2026 Equinox Mail — Secure Multi-Tenant Email Platform</span>
+  <span className="text-gray-300">|</span> {/* Optional separator */}
+  <a href="/privacy-policy-and-termsconditions" className="text-[#7C5CFC] hover:underline font-medium">
+    Privacy Policy & Terms
+  </a>
+</p>
       </div>
     </div>
   );
