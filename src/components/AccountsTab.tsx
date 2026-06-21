@@ -7,9 +7,10 @@ interface AccountsTabProps {
   accounts: GmailAccount[];
   loading: boolean;
   onRefresh: () => void;
+  isAdmin?: boolean;
 }
 
-export default function AccountsTab({ accounts, loading, onRefresh }: AccountsTabProps) {
+export default function AccountsTab({ accounts, loading, onRefresh, isAdmin: isAdminUser = false }: AccountsTabProps) {
   const [authUrlError, setAuthUrlError] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [activeRedirectUri, setActiveRedirectUri] = useState<string>('');
@@ -129,19 +130,21 @@ export default function AccountsTab({ accounts, loading, onRefresh }: AccountsTa
           </div>
         )}
 
-        {/* Dynamic callback advisory for user settings */}
-        <div className="mt-6 p-4 bg-[#7C5CFC]/5 rounded-xl border border-[#7C5CFC]/10 flex items-start space-x-3 text-xs leading-relaxed text-gray-700">
-          <Info className="w-4 h-4 text-[#7C5CFC] mt-0.5 flex-shrink-0" />
-          <div className="space-y-1">
-            <p className="font-medium text-[#7C5CFC]">Configuration Callback URI for Google Cloud Console:</p>
-            <p className="text-gray-600 font-mono select-all bg-white px-2 py-1 rounded border border-gray-100 break-all inline-block">
-              {activeRedirectUri || apiUrl('/api/auth/callback')}
-            </p>
-            <p className="text-gray-500 mt-1">
-              Ensure this redirect URI is listed in your Authorized redirect URIs inside the Google API Console for the client credential used.
-            </p>
+        {/* Dynamic callback advisory for admin settings only */}
+        {isAdminUser && (
+          <div className="mt-6 p-4 bg-[#7C5CFC]/5 rounded-xl border border-[#7C5CFC]/10 flex items-start space-x-3 text-xs leading-relaxed text-gray-700">
+            <Info className="w-4 h-4 text-[#7C5CFC] mt-0.5 flex-shrink-0" />
+            <div className="space-y-1">
+              <p className="font-medium text-[#7C5CFC]">Configuration Callback URI for Google Cloud Console:</p>
+              <p className="text-gray-600 font-mono select-all bg-white px-2 py-1 rounded border border-gray-100 break-all inline-block">
+                {activeRedirectUri || apiUrl('/api/auth/callback')}
+              </p>
+              <p className="text-gray-500 mt-1">
+                Ensure this redirect URI is listed in your Authorized redirect URIs inside the Google API Console for the client credential used.
+              </p>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Senders List */}
