@@ -307,7 +307,10 @@ export default function App() {
             <span className="font-semibold text-[#7C5CFC]/85 flex items-center justify-center sm:justify-start gap-1">
               <Mail className="w-3 h-3" /> Equinox Mail v2.0
             </span>
-            <span>Multi-Tenant Email Campaign Platform with Admin Controls</span>
+            <div className="flex items-center gap-3">
+              <span>Multi-Tenant Email Campaign Platform</span>
+              <a href="/privacy-policy-and-termsconditions" className="text-[#7C5CFC] hover:underline">Privacy Policy & Terms</a>
+            </div>
           </div>
         </footer>
       </div>
