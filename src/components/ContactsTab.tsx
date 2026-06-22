@@ -1,14 +1,18 @@
-import React, { useState } from 'react';
-import { Users, Upload, Plus, Trash2, FileSpreadsheet, Check, CheckCircle2, AlertTriangle, ChevronRight, LayoutList, Mail, Edit2, X } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Users, Upload, Plus, Trash2, FileSpreadsheet, Check, CheckCircle2, AlertTriangle, ChevronRight, LayoutList, Mail, Edit2, X, Loader2 } from 'lucide-react';
 import { Contact } from '../types';
 import { api } from '../api';
 
 interface ContactsTabProps {
-  contacts: Contact[];
-  onRefresh: () => void;
+  onRefresh?: () => void;
 }
 
-export default function ContactsTab({ contacts, onRefresh }: ContactsTabProps) {
+interface ListSummary {
+  listName: string;
+  count: number;
+}
+
+export default function ContactsTab({ onRefresh }: ContactsTabProps) {
   // Navigation & list states
   const [selectedList, setSelectedList] = useState<string | null>(null);
   const [newListName, setNewListName] = useState('');
@@ -41,22 +45,71 @@ export default function ContactsTab({ contacts, onRefresh }: ContactsTabProps) {
   const [selectedUploadList, setSelectedUploadList] = useState('');
   const [customListName, setCustomListName] = useState('');
 
-  // Group contacts by List Name
-  const groupedLists: Record<string, Contact[]> = {};
-  contacts.forEach((c) => {
-    const listKey = c.listName || 'Unassigned';
-    if (!groupedLists[listKey]) {
-      groupedLists[listKey] = [];
+  // Server-side pagination state
+  const PAGE_SIZE = 500;
+  const [currentPage, setCurrentPage] = useState(1);
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [totalContacts, setTotalContacts] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [loadingContacts, setLoadingContacts] = useState(false);
+
+  // List summary (lightweight — just names + counts)
+  const [listSummaries, setListSummaries] = useState<ListSummary[]>([]);
+
+  // Fetch list summaries from server
+  const fetchListSummaries = useCallback(async () => {
+    try {
+      const res = await api('/api/contacts/lists');
+      if (res.ok) {
+        const data = await res.json();
+        setListSummaries(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch list summaries:', err);
     }
-    groupedLists[listKey].push(c);
-  });
+  }, []);
 
-  const listKeys = Object.keys(groupedLists);
+  // Fetch paginated contacts for the selected list
+  const fetchPaginatedContacts = useCallback(async () => {
+    if (!selectedList) {
+      setContacts([]);
+      setTotalContacts(0);
+      setTotalPages(1);
+      return;
+    }
+    setLoadingContacts(true);
+    try {
+      const params = new URLSearchParams({
+        page: String(currentPage),
+        limit: String(PAGE_SIZE),
+        listName: selectedList,
+      });
+      const res = await api(`/api/contacts?${params}`);
+      if (res.ok) {
+        const data = await res.json();
+        setContacts(data.contacts || []);
+        setTotalContacts(data.total || 0);
+        setTotalPages(data.totalPages || 1);
+      }
+    } catch (err) {
+      console.error('Failed to fetch contacts:', err);
+    } finally {
+      setLoadingContacts(false);
+    }
+  }, [selectedList, currentPage]);
 
-  // Set default selected list on load if none exists
-  if (!selectedList && listKeys.length > 0) {
-    setSelectedList(listKeys[0]);
-  }
+  // Load list summaries on mount
+  useEffect(() => {
+    fetchListSummaries();
+  }, [fetchListSummaries]);
+
+  // Fetch contacts when list or page changes
+  useEffect(() => {
+    fetchPaginatedContacts();
+  }, [fetchPaginatedContacts]);
+
+  const listKeys = listSummaries.map(l => l.listName);
+  const getListCount = (name: string) => listSummaries.find(l => l.listName === name)?.count || 0;
 
   // Create empty List
   const handleCreateList = (e: React.FormEvent) => {
@@ -64,19 +117,20 @@ export default function ContactsTab({ contacts, onRefresh }: ContactsTabProps) {
     const listNameClean = newListName.trim();
     if (!listNameClean) return;
 
-    if (groupedLists[listNameClean]) {
+    if (listSummaries.some(l => l.listName === listNameClean)) {
       alert('A contact list with this name already exists.');
       return;
     }
 
-    // Add dummy or initial contact or just save in memory
     setSelectedList(listNameClean);
+    setCurrentPage(1);
     setNewListName('');
   };
 
   // Delete entire List
   const handleDeleteList = async (listName: string) => {
-    const confirmed = window.confirm(`Are you sure you want to delete the ENTIRE contact list "${listName}"? This will delete ${groupedLists[listName]?.length || 0} contact(s).`);
+    const count = getListCount(listName);
+    const confirmed = window.confirm(`Are you sure you want to delete the ENTIRE contact list "${listName}"? This will delete ${count} contact(s).`);
     if (!confirmed) return;
 
     try {
@@ -84,9 +138,13 @@ export default function ContactsTab({ contacts, onRefresh }: ContactsTabProps) {
         method: 'DELETE',
       });
       if (res.ok) {
-        onRefresh();
+        fetchListSummaries();
         if (selectedList === listName) {
           setSelectedList(null);
+          setCurrentPage(1);
+          setContacts([]);
+          setTotalContacts(0);
+          setTotalPages(1);
         }
       }
     } catch (err) {
@@ -128,7 +186,8 @@ export default function ContactsTab({ contacts, onRefresh }: ContactsTabProps) {
       });
 
       if (res.ok) {
-        onRefresh();
+        fetchPaginatedContacts();
+        fetchListSummaries();
         setNewContactEmail('');
         setNewContactName('');
       }
@@ -157,7 +216,7 @@ export default function ContactsTab({ contacts, onRefresh }: ContactsTabProps) {
       });
 
       if (res.ok) {
-        onRefresh();
+        fetchPaginatedContacts();
         setEditingId(null);
       }
     } catch (err) {
@@ -175,7 +234,8 @@ export default function ContactsTab({ contacts, onRefresh }: ContactsTabProps) {
         method: 'DELETE',
       });
       if (res.ok) {
-        onRefresh();
+        fetchPaginatedContacts();
+        fetchListSummaries();
       }
     } catch (err) {
       console.error(err);
@@ -346,23 +406,40 @@ export default function ContactsTab({ contacts, onRefresh }: ContactsTabProps) {
 
     try {
       setParsingFile(true);
-      const res = await api('/api/contacts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(parsedContacts),
-      });
 
-      if (res.ok) {
-        setCsvUploadSuccess(`Successfully imported ${parsedContacts.length} contacts with custom customizer tags into campaign segment "${targetListName}"!`);
+      // Upload in chunks of 2000 to avoid 413 Content Too Large from reverse proxies
+      const CHUNK_SIZE = 2000;
+      let totalUploaded = 0;
+      let failed = false;
+
+      for (let i = 0; i < parsedContacts.length; i += CHUNK_SIZE) {
+        const chunk = parsedContacts.slice(i, i + CHUNK_SIZE);
+        const res = await api('/api/contacts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(chunk),
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          setCsvError(`Failed at batch ${Math.floor(i / CHUNK_SIZE) + 1}: ${(errData as any).error || 'Upload failed'}`);
+          failed = true;
+          break;
+        }
+        totalUploaded += chunk.length;
+      }
+
+      if (!failed) {
+        setCsvUploadSuccess(`Successfully imported ${totalUploaded} contacts with custom customizer tags into campaign segment "${targetListName}"!`);
         setCsvError(null);
         setCustomListName('');
         setShowMappingPanel(false);
         setCsvHeaders([]);
         setCsvRows([]);
-        onRefresh();
         setSelectedList(targetListName);
-      } else {
-        setCsvError('Failed saving contact uploads to backend.');
+        setCurrentPage(1);
+        fetchListSummaries();
+        // fetchPaginatedContacts will auto-trigger via useEffect when selectedList/page changes
       }
     } catch (err) {
       setCsvError('Server offline or network timeout.');
@@ -371,7 +448,10 @@ export default function ContactsTab({ contacts, onRefresh }: ContactsTabProps) {
     }
   };
 
-  const selectedListContacts = selectedList ? groupedLists[selectedList] || [] : [];
+  // Pagination display helpers (data comes paginated from server)
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const pageStart = totalContacts === 0 ? 0 : (safeCurrentPage - 1) * PAGE_SIZE + 1;
+  const pageEnd = Math.min(safeCurrentPage * PAGE_SIZE, totalContacts);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -411,7 +491,7 @@ export default function ContactsTab({ contacts, onRefresh }: ContactsTabProps) {
           ) : (
             <div className="space-y-1">
               {listKeys.map((name) => {
-                const count = groupedLists[name]?.length || 0;
+                const count = getListCount(name);
                 const isSelected = selectedList === name;
                 return (
                   <div
@@ -421,7 +501,7 @@ export default function ContactsTab({ contacts, onRefresh }: ContactsTabProps) {
                         ? 'bg-blue-50/50 border-l-4 border-l-[#7C5CFC] font-semibold text-[#7C5CFC]'
                         : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                     }`}
-                    onClick={() => setSelectedList(name)}
+                    onClick={() => { setSelectedList(name); setCurrentPage(1); }}
                   >
                     <div className="flex items-center space-x-2 truncate">
                       <Users className="w-3.5 h-3.5 opacity-70" />
@@ -533,7 +613,11 @@ export default function ContactsTab({ contacts, onRefresh }: ContactsTabProps) {
                     <span className="p-1 px-2.5 text-[11px] font-bold tracking-wider text-[#7C5CFC] bg-blue-50 border border-blue-100 rounded-full font-mono uppercase">
                       Current List
                     </span>
-                    <span className="text-xs text-gray-400 font-mono">{selectedListContacts.length} contacts</span>
+                    <span className="text-xs text-gray-400 font-mono">
+                      {totalContacts.toLocaleString()} contacts
+                      {totalPages > 1 ? ` · Page ${safeCurrentPage} of ${totalPages}` : ''}
+                    </span>
+                    {loadingContacts && <Loader2 className="w-3.5 h-3.5 animate-spin text-[#7C5CFC] ml-1" />}
                   </div>
                   <h2 className="font-display font-bold text-gray-950 text-xl tracking-tight">{selectedList}</h2>
                 </div>
@@ -586,14 +670,21 @@ export default function ContactsTab({ contacts, onRefresh }: ContactsTabProps) {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50 text-xs text-gray-700">
-                    {selectedListContacts.length === 0 ? (
+                    {loadingContacts ? (
+                      <tr>
+                        <td colSpan={3} className="text-center py-12 text-gray-400">
+                          <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2 text-[#7C5CFC]" />
+                          Loading contacts...
+                        </td>
+                      </tr>
+                    ) : contacts.length === 0 ? (
                       <tr>
                         <td colSpan={3} className="text-center py-12 text-gray-400">
                           This contact list is empty. Add a custom contact or drop a CSV file above.
                         </td>
                       </tr>
                     ) : (
-                      selectedListContacts.map((contact) => {
+                      contacts.map((contact) => {
                         const isEditing = editingId === contact.id;
                         return (
                           <tr key={contact.id} className="hover:bg-gray-50/40 transition-colors">
@@ -724,6 +815,66 @@ export default function ContactsTab({ contacts, onRefresh }: ContactsTabProps) {
                   </tbody>
                 </table>
               </div>
+
+              {/* Pagination Controls */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between px-6 py-3 border-t border-gray-100 bg-gray-50/50">
+                  <span className="text-[11px] text-gray-500">
+                    Showing {pageStart}&ndash;{pageEnd} of {totalContacts.toLocaleString()} contacts
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setCurrentPage(1)}
+                      disabled={safeCurrentPage === 1}
+                      className="px-2 py-1 text-[10px] font-semibold rounded-lg border border-gray-200 text-gray-500 hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                    >
+                      First
+                    </button>
+                    <button
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={safeCurrentPage === 1}
+                      className="px-2.5 py-1 text-[10px] font-semibold rounded-lg border border-gray-200 text-gray-500 hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                    >
+                      Prev
+                    </button>
+                    {(() => {
+                      const pages: number[] = [];
+                      const maxVisible = 5;
+                      let start = Math.max(1, safeCurrentPage - Math.floor(maxVisible / 2));
+                      let end = Math.min(totalPages, start + maxVisible - 1);
+                      if (end - start + 1 < maxVisible) start = Math.max(1, end - maxVisible + 1);
+                      for (let i = start; i <= end; i++) pages.push(i);
+                      return pages.map(p => (
+                        <button
+                          key={p}
+                          onClick={() => setCurrentPage(p)}
+                          className={`px-2.5 py-1 text-[10px] font-semibold rounded-lg border cursor-pointer ${
+                            p === safeCurrentPage
+                              ? 'bg-[#7C5CFC] text-white border-[#7C5CFC]'
+                              : 'border-gray-200 text-gray-500 hover:bg-white'
+                          }`}
+                        >
+                          {p}
+                        </button>
+                      ));
+                    })()}
+                    <button
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      disabled={safeCurrentPage === totalPages}
+                      className="px-2.5 py-1 text-[10px] font-semibold rounded-lg border border-gray-200 text-gray-500 hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                    >
+                      Next
+                    </button>
+                    <button
+                      onClick={() => setCurrentPage(totalPages)}
+                      disabled={safeCurrentPage === totalPages}
+                      className="px-2 py-1 text-[10px] font-semibold rounded-lg border border-gray-200 text-gray-500 hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                    >
+                      Last
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </>
         ) : (
