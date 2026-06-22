@@ -41,6 +41,10 @@ export default function ContactsTab({ contacts, onRefresh }: ContactsTabProps) {
   const [selectedUploadList, setSelectedUploadList] = useState('');
   const [customListName, setCustomListName] = useState('');
 
+  // Pagination
+  const PAGE_SIZE = 500;
+  const [currentPage, setCurrentPage] = useState(1);
+
   // Group contacts by List Name
   const groupedLists: Record<string, Contact[]> = {};
   contacts.forEach((c) => {
@@ -66,6 +70,7 @@ export default function ContactsTab({ contacts, onRefresh }: ContactsTabProps) {
 
     // Add dummy or initial contact or just save in memory
     setSelectedList(listNameClean);
+    setCurrentPage(1);
     setNewListName('');
   };
 
@@ -82,6 +87,7 @@ export default function ContactsTab({ contacts, onRefresh }: ContactsTabProps) {
         onRefresh();
         if (selectedList === listName) {
           setSelectedList(null);
+          setCurrentPage(1);
         }
       }
     } catch (err) {
@@ -373,6 +379,7 @@ export default function ContactsTab({ contacts, onRefresh }: ContactsTabProps) {
         setCsvRows([]);
         onRefresh();
         setSelectedList(targetListName);
+        setCurrentPage(1);
       }
     } catch (err) {
       setCsvError('Server offline or network timeout.');
@@ -382,6 +389,11 @@ export default function ContactsTab({ contacts, onRefresh }: ContactsTabProps) {
   };
 
   const selectedListContacts = selectedList ? groupedLists[selectedList] || [] : [];
+  const totalPages = Math.max(1, Math.ceil(selectedListContacts.length / PAGE_SIZE));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const paginatedContacts = selectedListContacts.slice((safeCurrentPage - 1) * PAGE_SIZE, safeCurrentPage * PAGE_SIZE);
+  const pageStart = selectedListContacts.length === 0 ? 0 : (safeCurrentPage - 1) * PAGE_SIZE + 1;
+  const pageEnd = Math.min(safeCurrentPage * PAGE_SIZE, selectedListContacts.length);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -431,7 +443,7 @@ export default function ContactsTab({ contacts, onRefresh }: ContactsTabProps) {
                         ? 'bg-blue-50/50 border-l-4 border-l-[#7C5CFC] font-semibold text-[#7C5CFC]'
                         : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                     }`}
-                    onClick={() => setSelectedList(name)}
+                    onClick={() => { setSelectedList(name); setCurrentPage(1); }}
                   >
                     <div className="flex items-center space-x-2 truncate">
                       <Users className="w-3.5 h-3.5 opacity-70" />
@@ -603,7 +615,7 @@ export default function ContactsTab({ contacts, onRefresh }: ContactsTabProps) {
                         </td>
                       </tr>
                     ) : (
-                      selectedListContacts.map((contact) => {
+                      paginatedContacts.map((contact) => {
                         const isEditing = editingId === contact.id;
                         return (
                           <tr key={contact.id} className="hover:bg-gray-50/40 transition-colors">
@@ -734,9 +746,76 @@ export default function ContactsTab({ contacts, onRefresh }: ContactsTabProps) {
                   </tbody>
                 </table>
               </div>
+              {/* Pagination Controls */}
+              {selectedListContacts.length > PAGE_SIZE && (
+                <div className="flex items-center justify-between px-6 py-3 border-t border-gray-100 bg-gray-50/50">
+                  <span className="text-[11px] text-gray-500">
+                    Showing {pageStart}–{pageEnd} of {selectedListContacts.length} contacts
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setCurrentPage(1)}
+                      disabled={safeCurrentPage === 1}
+                      className="px-2 py-1 text-[10px] font-semibold rounded-lg border border-gray-200 text-gray-500 hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                    >
+                      First
+                    </button>
+                    <button
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={safeCurrentPage === 1}
+                      className="px-2.5 py-1 text-[10px] font-semibold rounded-lg border border-gray-200 text-gray-500 hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                    >
+                      Prev
+                    </button>
+                    {(() => {
+                      const pages: number[] = [];
+                      const maxVisible = 5;
+                      let start = Math.max(1, safeCurrentPage - Math.floor(maxVisible / 2));
+                      let end = Math.min(totalPages, start + maxVisible - 1);
+                      if (end - start + 1 < maxVisible) start = Math.max(1, end - maxVisible + 1);
+                      for (let i = start; i <= end; i++) pages.push(i);
+                      return pages.map(p => (
+                        <button
+                          key={p}
+                          onClick={() => setCurrentPage(p)}
+                          className={`px-2.5 py-1 text-[10px] font-semibold rounded-lg border cursor-pointer ${
+                            p === safeCurrentPage
+                              ? 'bg-[#7C5CFC] text-white border-[#7C5CFC]'
+                              : 'border-gray-200 text-gray-500 hover:bg-white'
+                          }`}
+                        >
+                          {p}
+                        </button>
+                      ));
+                    })()}
+                    <button
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      disabled={safeCurrentPage === totalPages}
+                      className="px-2.5 py-1 text-[10px] font-semibold rounded-lg border border-gray-200 text-gray-500 hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                    >
+                      Next
+                    </button>
+                    <button
+                      onClick={() => setCurrentPage(totalPages)}
+                      disabled={safeCurrentPage === totalPages}
+                      className="px-2 py-1 text-[10px] font-semibold rounded-lg border border-gray-200 text-gray-500 hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                    >
+                      Last
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </>
-        ) : (
+        ) : (</old_string>
+</Editor.edit_file_by_replace>
+
+Now update the contact count display in the header to show the paginated range:
+
+<Editor.edit_file_by_replace>
+<path>/workspace/mail-front/src/components/ContactsTab.tsx</path>
+<old_string>                    <span className="text-xs text-gray-400 font-mono">{selectedListContacts.length} contacts</span></old_string>
+<new_string>                    <span className="text-xs text-gray-400 font-mono">{selectedListContacts.length.toLocaleString()} contacts{selectedListContacts.length > PAGE_SIZE ? ` · Page ${safeCurrentPage} of ${totalPages}` : ''}</span>
           <div className="bg-white rounded-2xl border border-gray-100 card-shadow flex flex-col justify-center items-center py-20 text-center">
             <div className="w-16 h-16 bg-blue-50 text-[#7C5CFC] rounded-full flex items-center justify-center mb-4 border border-blue-100">
               <Users className="w-8 h-8" />
