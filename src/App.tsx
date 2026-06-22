@@ -49,8 +49,13 @@ export default function App() {
   const fetchContacts = async () => {
     setLoadingContacts(true);
     try {
-      const res = await api('/api/contacts');
-      if (res.ok) setContacts(await res.json());
+      // Fetch all contacts for Dashboard/Campaigns/Validator tabs using large limit
+      const res = await api('/api/contacts?limit=10000');
+      if (res.ok) {
+        const data = await res.json();
+        // Server now returns { contacts, total, page, totalPages, limit }
+        setContacts(Array.isArray(data) ? data : (data.contacts || []));
+      }
     } catch (err) {
       console.error('Failed fetching contacts:', err);
     } finally {
@@ -275,7 +280,6 @@ export default function App() {
 
           {activeTab === 'contacts' && (
             <ContactsTab
-              contacts={contacts}
               onRefresh={fetchContacts}
             />
           )}
