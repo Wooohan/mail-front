@@ -53,11 +53,6 @@ export default function ContactsTab({ contacts, onRefresh }: ContactsTabProps) {
 
   const listKeys = Object.keys(groupedLists);
 
-  // Set default selected list on load if none exists
-  if (!selectedList && listKeys.length > 0) {
-    setSelectedList(listKeys[0]);
-  }
-
   // Create empty List
   const handleCreateList = (e: React.FormEvent) => {
     e.preventDefault();
