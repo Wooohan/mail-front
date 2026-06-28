@@ -12,10 +12,12 @@ export interface Contact {
   email: string;
   name: string;
   listName: string;
-  createdAt: string;
+  createdAt?: string;
   company?: string;
   firstName?: string;
   variables?: Record<string, string>;
+  /** Lightweight count used by list summaries to avoid loading all contacts into memory */
+  _count?: number;
 }
 
 export interface Campaign {
