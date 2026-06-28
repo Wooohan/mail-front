@@ -30,13 +30,17 @@ export default function ContactsTab({ onRefresh }: ContactsTabProps) {
   const [parsingFile, setParsingFile] = useState<boolean>(false);
   const [uploadedFileName, setUploadedFileName] = useState<string>('');
   const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
-  const [csvRows, setCsvRows] = useState<string[][]>([]);
+  // Store only preview rows (first 5) for display — full data kept as raw text ref
+  const [csvPreviewRows, setCsvPreviewRows] = useState<string[][]>([]);
+  const [csvTotalRowCount, setCsvTotalRowCount] = useState<number>(0);
+  const [csvRawText, setCsvRawText] = useState<string>('');
   const [showMappingPanel, setShowMappingPanel] = useState<boolean>(false);
   const [mappingEmailIdx, setMappingEmailIdx] = useState<number>(-1);
   const [mappingNameIdx, setMappingNameIdx] = useState<number>(-1);
   const [mappingFirstNameIdx, setMappingFirstNameIdx] = useState<number>(-1);
   const [mappingCompanyIdx, setMappingCompanyIdx] = useState<number>(-1);
   const [includeAllColumnsAsVars, setIncludeAllColumnsAsVars] = useState<boolean>(true);
+  const [uploadProgress, setUploadProgress] = useState<string>('');
 
   // CSV Drag and drop states
   const [dragActive, setDragActive] = useState(false);
@@ -270,7 +274,7 @@ export default function ContactsTab({ onRefresh }: ContactsTabProps) {
     }
   };
 
-  // CSV Client-side parsing algorithm
+  // CSV Client-side parsing algorithm — optimized to avoid holding all rows in React state
   const processFile = (file: File) => {
     if (!file.name.endsWith('.csv') && !file.name.endsWith('.txt')) {
       setCsvError('Invalid file type. Please upload a structured .CSV file.');
@@ -285,44 +289,56 @@ export default function ContactsTab({ onRefresh }: ContactsTabProps) {
         return;
       }
 
-      // Split lines
-      const csvLines = text.split(/\r?\n/).map(line => line.trim()).filter(line => line.length > 0);
-      if (csvLines.length === 0) {
-        setCsvError('No valid data lines found in CSV.');
-        return;
-      }
+      // Store raw text in state ref for later processing during upload
+      setCsvRawText(text);
 
-      // Detect header index / strategy
-      const firstLine = csvLines[0];
+      // Split lines — only parse headers + first few rows for preview
+      const firstNewline = text.indexOf('\n');
+      const firstLine = (firstNewline > 0 ? text.substring(0, firstNewline) : text).trim();
       const separator = firstLine.includes(';') ? ';' : ',';
 
       // Parse headers
       const headers = firstLine.split(separator).map(t => t.replace(/['"]/g, '').trim());
-      
-      // Parse all rows
-      const allRows: string[][] = [];
-      for (let i = 1; i < csvLines.length; i++) {
-        const line = csvLines[i];
-        const values: string[] = [];
-        let cur = '';
-        let insideQuotes = false;
-        for (let charIdx = 0; charIdx < line.length; charIdx++) {
-          const char = line[charIdx];
-          if (char === '"' || char === "'") {
-            insideQuotes = !insideQuotes;
-          } else if (char === separator && !insideQuotes) {
-            values.push(cur.trim());
-            cur = '';
-          } else {
-            cur += char;
+
+      // Count total rows efficiently (just count newlines)
+      let rowCount = 0;
+      for (let i = 0; i < text.length; i++) {
+        if (text[i] === '\n') rowCount++;
+      }
+      // Subtract header line
+      if (rowCount > 0) rowCount--;
+
+      // Parse only first 5 rows for preview display
+      const previewRows: string[][] = [];
+      let lineStart = firstNewline + 1;
+      for (let r = 0; r < Math.min(5, rowCount); r++) {
+        let lineEnd = text.indexOf('\n', lineStart);
+        if (lineEnd === -1) lineEnd = text.length;
+        const line = text.substring(lineStart, lineEnd).trim();
+        if (line.length > 0) {
+          const values: string[] = [];
+          let cur = '';
+          let insideQuotes = false;
+          for (let charIdx = 0; charIdx < line.length; charIdx++) {
+            const char = line[charIdx];
+            if (char === '"' || char === "'") {
+              insideQuotes = !insideQuotes;
+            } else if (char === separator && !insideQuotes) {
+              values.push(cur.trim());
+              cur = '';
+            } else {
+              cur += char;
+            }
           }
+          values.push(cur.trim());
+          previewRows.push(values);
         }
-        values.push(cur.trim());
-        allRows.push(values);
+        lineStart = lineEnd + 1;
       }
 
       setCsvHeaders(headers);
-      setCsvRows(allRows);
+      setCsvPreviewRows(previewRows);
+      setCsvTotalRowCount(rowCount);
       setUploadedFileName(file.name);
 
       // Guess indexes
@@ -356,64 +372,106 @@ export default function ContactsTab({ onRefresh }: ContactsTabProps) {
     }
 
     const targetListName = (customListName ? customListName.trim() : uploadedFileName.replace(/\.(csv|txt)$/i, '')).trim() || 'Imported Recipients';
-    const parsedContacts: any[] = [];
-
-    csvRows.forEach((row) => {
-      const emailRaw = row[mappingEmailIdx] || '';
-      const emailClean = emailRaw.replace(/['"]/g, '').trim();
-
-      if (emailClean && /\S+@\S+\.\S+/.test(emailClean)) {
-        const nameClean = mappingNameIdx >= 0 && row[mappingNameIdx] ? row[mappingNameIdx].replace(/['"]/g, '').trim() : '';
-        const firstNameClean = mappingFirstNameIdx >= 0 && row[mappingFirstNameIdx] ? row[mappingFirstNameIdx].replace(/['"]/g, '').trim() : '';
-        const companyClean = mappingCompanyIdx >= 0 && row[mappingCompanyIdx] ? row[mappingCompanyIdx].replace(/['"]/g, '').trim() : '';
-
-        // Capture other helper columns if active
-        const customVars: Record<string, string> = {};
-        if (includeAllColumnsAsVars) {
-          csvHeaders.forEach((header, index) => {
-            if (
-              index !== mappingEmailIdx &&
-              index !== mappingNameIdx &&
-              index !== mappingFirstNameIdx &&
-              index !== mappingCompanyIdx &&
-              row[index] !== undefined
-            ) {
-              const cleanKey = header.replace(/[^a-zA-Z0-9_]/g, '');
-              if (cleanKey) {
-                const valClean = row[index].replace(/['"]/g, '').trim();
-                customVars[cleanKey] = valClean;
-                customVars[cleanKey.toLowerCase()] = valClean;
-              }
-            }
-          });
-        }
-
-        parsedContacts.push({
-          email: emailClean,
-          name: nameClean,
-          firstName: firstNameClean || nameClean.split(' ')[0],
-          company: companyClean,
-          listName: targetListName,
-          variables: customVars
-        });
-      }
-    });
-
-    if (parsedContacts.length === 0) {
-      setCsvError('No valid contacts found. Verify that the mapped column has valid email addresses.');
-      return;
-    }
 
     try {
       setParsingFile(true);
+      setUploadProgress('Parsing and uploading...');
 
-      // Upload in chunks of 2000 to avoid 413 Content Too Large from reverse proxies
+      // Stream-parse the raw CSV text and upload in chunks
+      // This avoids building a 50K-item array in memory
+      const separator = csvRawText.includes(';') ? ';' : ',';
+      const lines = csvRawText.split(/\r?\n/);
       const CHUNK_SIZE = 2000;
+      let chunk: any[] = [];
       let totalUploaded = 0;
+      let totalValid = 0;
       let failed = false;
 
-      for (let i = 0; i < parsedContacts.length; i += CHUNK_SIZE) {
-        const chunk = parsedContacts.slice(i, i + CHUNK_SIZE);
+      // Skip header line (index 0)
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+
+        // Parse line
+        const values: string[] = [];
+        let cur = '';
+        let insideQuotes = false;
+        for (let charIdx = 0; charIdx < line.length; charIdx++) {
+          const char = line[charIdx];
+          if (char === '"' || char === "'") {
+            insideQuotes = !insideQuotes;
+          } else if (char === separator && !insideQuotes) {
+            values.push(cur.trim());
+            cur = '';
+          } else {
+            cur += char;
+          }
+        }
+        values.push(cur.trim());
+
+        // Extract mapped fields
+        const emailRaw = values[mappingEmailIdx] || '';
+        const emailClean = emailRaw.replace(/['"]/g, '').trim();
+
+        if (emailClean && /\S+@\S+\.\S+/.test(emailClean)) {
+          const nameClean = mappingNameIdx >= 0 && values[mappingNameIdx] ? values[mappingNameIdx].replace(/['"]/g, '').trim() : '';
+          const firstNameClean = mappingFirstNameIdx >= 0 && values[mappingFirstNameIdx] ? values[mappingFirstNameIdx].replace(/['"]/g, '').trim() : '';
+          const companyClean = mappingCompanyIdx >= 0 && values[mappingCompanyIdx] ? values[mappingCompanyIdx].replace(/['"]/g, '').trim() : '';
+
+          const customVars: Record<string, string> = {};
+          if (includeAllColumnsAsVars) {
+            csvHeaders.forEach((header, index) => {
+              if (
+                index !== mappingEmailIdx &&
+                index !== mappingNameIdx &&
+                index !== mappingFirstNameIdx &&
+                index !== mappingCompanyIdx &&
+                values[index] !== undefined
+              ) {
+                const cleanKey = header.replace(/[^a-zA-Z0-9_]/g, '');
+                if (cleanKey) {
+                  const valClean = values[index].replace(/['"]/g, '').trim();
+                  customVars[cleanKey] = valClean;
+                  customVars[cleanKey.toLowerCase()] = valClean;
+                }
+              }
+            });
+          }
+
+          chunk.push({
+            email: emailClean,
+            name: nameClean,
+            firstName: firstNameClean || nameClean.split(' ')[0],
+            company: companyClean,
+            listName: targetListName,
+            variables: customVars
+          });
+          totalValid++;
+
+          // When chunk is full, upload it
+          if (chunk.length >= CHUNK_SIZE) {
+            setUploadProgress(`Uploading... ${totalUploaded + chunk.length} of ~${csvTotalRowCount} contacts`);
+            const res = await api('/api/contacts', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(chunk),
+            });
+
+            if (!res.ok) {
+              const errData = await res.json().catch(() => ({}));
+              setCsvError(`Failed at batch ${Math.floor(totalUploaded / CHUNK_SIZE) + 1}: ${(errData as any).error || 'Upload failed'}`);
+              failed = true;
+              break;
+            }
+            totalUploaded += chunk.length;
+            chunk = [];
+          }
+        }
+      }
+
+      // Upload remaining chunk
+      if (!failed && chunk.length > 0) {
+        setUploadProgress(`Uploading final batch... ${totalUploaded + chunk.length} contacts`);
         const res = await api('/api/contacts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -422,29 +480,35 @@ export default function ContactsTab({ onRefresh }: ContactsTabProps) {
 
         if (!res.ok) {
           const errData = await res.json().catch(() => ({}));
-          setCsvError(`Failed at batch ${Math.floor(i / CHUNK_SIZE) + 1}: ${(errData as any).error || 'Upload failed'}`);
+          setCsvError(`Failed at final batch: ${(errData as any).error || 'Upload failed'}`);
           failed = true;
-          break;
+        } else {
+          totalUploaded += chunk.length;
         }
-        totalUploaded += chunk.length;
       }
 
       if (!failed) {
-        setCsvUploadSuccess(`Successfully imported ${totalUploaded} contacts with custom customizer tags into campaign segment "${targetListName}"!`);
-        setCsvError(null);
-        setCustomListName('');
-        setShowMappingPanel(false);
-        setCsvHeaders([]);
-        setCsvRows([]);
-        setSelectedList(targetListName);
-        setCurrentPage(1);
-        fetchListSummaries();
-        // fetchPaginatedContacts will auto-trigger via useEffect when selectedList/page changes
+        if (totalValid === 0) {
+          setCsvError('No valid contacts found. Verify that the mapped column has valid email addresses.');
+        } else {
+          setCsvUploadSuccess(`Successfully imported ${totalUploaded} contacts with custom customizer tags into campaign segment "${targetListName}"!`);
+          setCsvError(null);
+          setCustomListName('');
+          setShowMappingPanel(false);
+          setCsvHeaders([]);
+          setCsvPreviewRows([]);
+          setCsvRawText('');
+          setCsvTotalRowCount(0);
+          setSelectedList(targetListName);
+          setCurrentPage(1);
+          fetchListSummaries();
+        }
       }
     } catch (err) {
       setCsvError('Server offline or network timeout.');
     } finally {
       setParsingFile(false);
+      setUploadProgress('');
     }
   };
 
@@ -916,7 +980,7 @@ export default function ContactsTab({ onRefresh }: ContactsTabProps) {
             {/* Content area */}
             <div className="p-6 overflow-y-auto space-y-4">
               <div className="bg-blue-50/40 border border-blue-100 rounded-2xl p-4 text-xs space-y-1.5 text-blue-900">
-                <span className="font-bold block text-[#7C5CFC]">💡 System parsed {csvHeaders.length} columns and detected {csvRows.length} contacts</span>
+                <span className="font-bold block text-[#7C5CFC]">💡 System parsed {csvHeaders.length} columns and detected ~{csvTotalRowCount.toLocaleString()} contacts</span>
                 <p className="text-[11px] leading-relaxed text-slate-600">
                   Select which columns map to system parameters. Check the option below to preserve all additional columns as dynamic personalization variables (such as <code>{"{{City}}"}</code>, <code>{"{{JobTitle}}"}</code> or custom tags) in your email templates!
                 </p>
@@ -938,7 +1002,7 @@ export default function ContactsTab({ onRefresh }: ContactsTabProps) {
                     <option value="">-- Choose Email Column --</option>
                     {csvHeaders.map((header, idx) => (
                       <option key={idx} value={idx}>
-                        {header} (e.g. "{csvRows[0]?.[idx] || '...'}")
+                        {header} (e.g. "{csvPreviewRows[0]?.[idx] || '...'}")
                       </option>
                     ))}
                   </select>
@@ -957,7 +1021,7 @@ export default function ContactsTab({ onRefresh }: ContactsTabProps) {
                     <option value="-1">-- None / Match Empty --</option>
                     {csvHeaders.map((header, idx) => (
                       <option key={idx} value={idx}>
-                        {header} (e.g. "{csvRows[0]?.[idx] || '...'}")
+                        {header} (e.g. "{csvPreviewRows[0]?.[idx] || '...'}")
                       </option>
                     ))}
                   </select>
@@ -976,7 +1040,7 @@ export default function ContactsTab({ onRefresh }: ContactsTabProps) {
                     <option value="-1">-- Extract Automatically from full name --</option>
                     {csvHeaders.map((header, idx) => (
                       <option key={idx} value={idx}>
-                        {header} (e.g. "{csvRows[0]?.[idx] || '...'}")
+                        {header} (e.g. "{csvPreviewRows[0]?.[idx] || '...'}")
                       </option>
                     ))}
                   </select>
@@ -995,7 +1059,7 @@ export default function ContactsTab({ onRefresh }: ContactsTabProps) {
                     <option value="-1">-- None --</option>
                     {csvHeaders.map((header, idx) => (
                       <option key={idx} value={idx}>
-                        {header} (e.g. "{csvRows[0]?.[idx] || '...'}")
+                        {header} (e.g. "{csvPreviewRows[0]?.[idx] || '...'}")
                       </option>
                     ))}
                   </select>
@@ -1030,7 +1094,7 @@ export default function ContactsTab({ onRefresh }: ContactsTabProps) {
                   <div className="text-[#7C5CFC] font-bold border-b border-gray-100 pb-1 mb-1">
                     {csvHeaders.map(h => `[ ${h} ]`).join(' | ')}
                   </div>
-                  {csvRows.slice(0, 2).map((row, rIdx) => (
+                  {csvPreviewRows.slice(0, 2).map((row, rIdx) => (
                     <div key={rIdx} className="text-gray-600">
                       Row #{rIdx + 1}: {row.map(cell => `"${cell}"`).join(' | ')}
                     </div>
@@ -1055,7 +1119,7 @@ export default function ContactsTab({ onRefresh }: ContactsTabProps) {
                 disabled={parsingFile}
                 className="bg-[#7C5CFC] hover:bg-[#6c4be0] text-white font-bold text-xs px-8 py-2 rounded-full cursor-pointer flex items-center gap-1 shadow-md hover:scale-[1.01] transition-all disabled:opacity-50"
               >
-                {parsingFile ? 'Saving mapped contacts...' : 'Import Mapped Contacts'}
+                {parsingFile ? (uploadProgress || 'Saving mapped contacts...') : 'Import Mapped Contacts'}
               </button>
             </div>
 
