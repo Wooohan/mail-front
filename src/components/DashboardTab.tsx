@@ -157,7 +157,7 @@ export default function DashboardTab({ accounts, contacts, campaigns, onRefreshA
           </div>
           <div>
             <p className="text-[10px] font-black tracking-widest text-[#96969B] uppercase font-mono">TOTAL LEADS</p>
-            <h3 className="text-2xl font-black font-display text-gray-950 tracking-tight leading-none mt-1">{contacts.length}</h3>
+            <h3 className="text-2xl font-black font-display text-gray-950 tracking-tight leading-none mt-1">{contacts.reduce((sum, c) => sum + (c._count || 1), 0)}</h3>
             <p className="text-[10px] text-gray-400 mt-1">Segmented lists</p>
           </div>
         </div>
