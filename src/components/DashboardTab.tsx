@@ -183,8 +183,8 @@ export default function DashboardTab({ accounts, contacts, campaigns, onRefreshA
 
             {campaigns.length === 0 ? (
               <div className="text-center py-10">
-                <p className="text-xs text-gray-400 italic">No campaign configurations registered.</p>
-                <p className="text-[10px] text-gray-400 mt-1">Initialize customized email templates to stream real-time paced loops here!</p>
+                <p className="text-xs text-gray-400">No campaigns yet.</p>
+                <p className="text-[10px] text-gray-400 mt-1">Create a campaign to see activity here.</p>
               </div>
             ) : (
               <div className="space-y-4">
@@ -236,11 +236,11 @@ export default function DashboardTab({ accounts, contacts, campaigns, onRefreshA
               <h3 className="font-display font-black text-gray-950 text-base flex items-center gap-2">
                 <Shuffle className="w-4 h-4 text-[#7C5CFC]" /> Rotational Sender Node Loads
               </h3>
-              <p className="text-[10px] text-gray-400 font-mono">Round-robin balancing index</p>
+              <p className="text-[10px] text-gray-400 font-mono">Round-robin load distribution</p>
             </div>
 
             {accounts.length === 0 ? (
-              <p className="text-xs text-gray-400 italic text-center py-6">No authenticated Gmail accounts found.</p>
+              <p className="text-xs text-gray-400 text-center py-6">No Gmail accounts connected yet.</p>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {sortedSenderLoads.map(([email, load]) => {
