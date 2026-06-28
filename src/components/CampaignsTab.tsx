@@ -1004,14 +1004,51 @@ export default function CampaignsTab({ campaigns, accounts, contacts, onRefresh 
 
           {/* Table list */}
           {campaigns.length === 0 ? (
-            <div className="text-center py-20 bg-white rounded-3xl border border-[#EBEBEF] border-dashed">
-              <div className="w-12 h-12 bg-gray-50 text-gray-300 rounded-full flex items-center justify-center mx-auto mb-3 border border-gray-100">
-                <Send className="w-5 h-5" />
+            <div className="bg-white rounded-3xl border border-[#EBEBEF] overflow-hidden">
+              {/* Header illustration area */}
+              <div className="flex flex-col items-center pt-14 pb-8 px-6">
+                <div className="flex items-end gap-2 mb-8 opacity-20">
+                  <div className="w-16 h-20 bg-gray-300 rounded-xl rotate-[-8deg]" />
+                  <div className="w-20 h-24 bg-gray-400 rounded-xl" />
+                  <div className="w-16 h-20 bg-gray-300 rounded-xl rotate-[8deg]" />
+                </div>
+                <h3 className="font-display font-black text-gray-950 text-2xl tracking-tight mb-2">Nothing sent yet</h3>
+                <p className="text-sm text-gray-400 text-center max-w-xs leading-relaxed">Choose what you'd like to do next</p>
               </div>
-              <h4 className="font-bold text-gray-800 text-sm mb-1">No campaigns initialized yet</h4>
-              <p className="text-xs text-gray-500 max-w-sm mx-auto mb-5 leading-relaxed">
-                Formulate an outbox queue pacing schedule in 'Start Campaign' of bento cards to see it here!
-              </p>
+
+              {/* Divider */}
+              <div className="border-t border-[#EBEBEF]" />
+
+              {/* Action rows */}
+              <button
+                onClick={() => setSubTab('create')}
+                className="w-full flex items-center gap-4 px-6 py-4 hover:bg-gray-50 transition-colors text-left"
+              >
+                <div className="w-10 h-10 rounded-xl bg-[#F2EFFE] flex items-center justify-center flex-shrink-0">
+                  <Plus className="w-5 h-5 text-[#7C5CFC]" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 leading-snug">Create new campaign</p>
+                  <p className="text-xs text-gray-400 mt-0.5 leading-snug">Build a sequence and start sending to your list</p>
+                </div>
+                <svg className="w-4 h-4 text-gray-300 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+              </button>
+
+              <div className="border-t border-[#EBEBEF]" />
+
+              <button
+                onClick={() => setSubTab('direct')}
+                className="w-full flex items-center gap-4 px-6 py-4 hover:bg-gray-50 transition-colors text-left"
+              >
+                <div className="w-10 h-10 rounded-xl bg-[#F2EFFE] flex items-center justify-center flex-shrink-0">
+                  <Send className="w-4 h-4 text-[#7C5CFC]" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 leading-snug">Send a direct email</p>
+                  <p className="text-xs text-gray-400 mt-0.5 leading-snug">Fire a one-off message to any recipient instantly</p>
+                </div>
+                <svg className="w-4 h-4 text-gray-300 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+              </button>
             </div>
           ) : (
             <div className="space-y-4">
@@ -1219,7 +1256,7 @@ export default function CampaignsTab({ campaigns, accounts, contacts, onRefresh 
                 <Send className="w-5 h-5 text-[#7C5CFC]" /> Direct Single Dispatch
               </h3>
               <p className="text-xs text-gray-500">
-                Send manual, instant messages directly using any of your authenticated sender nodes — bypasses automated sequence rotation.
+                Send a one-off email directly from any connected Gmail account — bypasses campaign sequences.
               </p>
             </div>
           </div>
@@ -1440,7 +1477,7 @@ export default function CampaignsTab({ campaigns, accounts, contacts, onRefresh 
                           {log.status === 'success' ? 'Sent' : 'Fail'}
                         </span>
                       </div>
-                      <p className="text-[9px] text-gray-400 truncate">Sender node: {log.sender}</p>
+                      <p className="text-[9px] text-gray-400 truncate">Sender: {log.sender}</p>
                       <p className="text-[10px] text-gray-500 truncate italic">"{log.subject}"</p>
                       {log.errorMessage && (
                         <p className="text-red-500 text-[8px] font-mono bg-red-50/55 p-1 rounded">
