@@ -578,8 +578,9 @@ export default function CampaignsTab({ campaigns, accounts, contacts, onRefresh 
     reader.readAsText(file);
   };
 
-  // Calculations for real-time iteration stats panel
-  const totalC = contacts.filter(c => c.listName.toLowerCase() === (contactListName || 'q4 prospecting').toLowerCase()).length || 500;
+  // Calculations for real-time iteration stats panel — use _count from lightweight summaries
+  const matchedContact = contacts.find(c => c.listName.toLowerCase() === (contactListName || 'q4 prospecting').toLowerCase());
+  const totalC = (matchedContact?._count) || contacts.filter(c => c.listName.toLowerCase() === (contactListName || 'q4 prospecting').toLowerCase()).length || 500;
   const activeCount = selectedSenders.length || (accounts.length > 0 ? accounts.length : 20);
   
   // Cycle time (hours) = (totalContacts * customDelaySeconds) / activeAccounts / 3600
