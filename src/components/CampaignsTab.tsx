@@ -143,11 +143,7 @@ export default function CampaignsTab({ campaigns, accounts, contacts, onRefresh 
 
   // Active sync settings
   useEffect(() => {
-    if (groupedListNames.length > 0 && !contactListName) {
-      setContactListName(groupedListNames[0]);
-    } else if (groupedListNames.length === 0 && !contactListName) {
-      setContactListName('Q4 Prospecting');
-    }
+    // Do NOT auto-select a contact list — user must choose one manually
     
     // Auto-select linked senders
     if (accounts.length > 0 && selectedSenders.length === 0) {
@@ -722,12 +718,10 @@ export default function CampaignsTab({ campaigns, accounts, contacts, onRefresh 
                         onChange={(e) => setContactListName(e.target.value)}
                         className="font-display font-black text-lg text-gray-950 bg-transparent focus:outline-none cursor-pointer border-b border-dashed border-gray-300 pr-4 pb-0.5 max-w-[200px]"
                       >
+                        <option value="">-- Select List --</option>
                         {groupedListNames.map((name) => (
                           <option key={name} value={name}>{name}</option>
                         ))}
-                        {groupedListNames.length === 0 && (
-                          <option value="Q4 Prospecting">Q4 Prospecting</option>
-                        )}
                       </select>
                       <span className="text-[11px] text-gray-400 font-mono">
                         ({totalC} items)
@@ -1160,7 +1154,7 @@ export default function CampaignsTab({ campaigns, accounts, contacts, onRefresh 
                       <div className="bg-[#FAFAFD] border-t border-[#EBEBEF] p-6 space-y-4">
                         <div className="flex justify-between items-center">
                           <h5 className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1">
-                            <BarChart2 className="w-3.5 h-3.5 text-[#7C5CFC]" /> Live Dispatch Streams ({logs.length})
+                            <BarChart2 className="w-3.5 h-3.5 text-[#7C5CFC]" /> Live Dispatch Streams ({logs.length}{logs.length >= 50 ? ' — showing latest 50' : ''})
                           </h5>
                           <button
                             onClick={() => fetchLogs(c.id)}
