@@ -243,29 +243,12 @@ export default function CampaignsTab({ campaigns, accounts, contacts, onRefresh 
     if (!contactListName) return alert('Please specify a contact list or upload one using Card 2.');
     if (!subject.trim()) return alert('Email subject line cannot be empty.');
 
-    const targetListContacts = contacts.filter(c => c.listName.toLowerCase() === contactListName.toLowerCase());
-    
-    // If no existing list in database, fall back or populate some initial mock contacts
-    // to keep it fully operational for client demonstration
-    let finalContactsCount = targetListContacts.length;
-    if (finalContactsCount === 0) {
-      // Let's seed 500 contacts so campaign runs immediately even if brand new
-      const sampleContacts = Array.from({ length: 500 }).map((_, idx) => ({
-        name: `Prospect ${idx + 1}`,
-        email: `lead_${idx + 1}@example.com`,
-        listName: contactListName || 'Q4 Prospecting'
-      }));
+    // Use the _count from lightweight summary to get the real contact count for this list
+    const matchedListSummary = contacts.find(c => c.listName.toLowerCase() === contactListName.toLowerCase());
+    const finalContactsCount = (matchedListSummary as any)?._count || 0;
 
-      try {
-        await api('/api/contacts', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(sampleContacts),
-        });
-        finalContactsCount = 500;
-      } catch (err) {
-        console.error('Failed auto seeding contacts:', err);
-      }
+    if (finalContactsCount === 0) {
+      return alert(`The contact list "${contactListName}" is empty. Please upload contacts first.`);
     }
 
     if (selectedSenders.length === 0) {
@@ -278,7 +261,7 @@ export default function CampaignsTab({ campaigns, accounts, contacts, onRefresh 
       contactListName,
       subject,
       bodyTemplate,
-      totalContacts: finalContactsCount > 0 ? finalContactsCount : 500,
+      totalContacts: finalContactsCount,
       senderEmails: selectedSenders,
       emailsPerHourPerAccount: emailsPerHour,
       delaySeconds: customDelay,
@@ -548,12 +531,8 @@ export default function CampaignsTab({ campaigns, accounts, contacts, onRefresh 
       }
 
       if (parsed.length === 0) {
-        // Feed placeholder contacts for safety
-        parsed = Array.from({ length: 500 }).map((_, idx) => ({
-          name: `Lead ${idx + 1}`,
-          email: `target_${idx + 1}@example.com`,
-          listName: listNameFromFilename
-        }));
+        setCsvErrorMessage('No valid email addresses found in the uploaded file. Please check the CSV format.');
+        return;
       }
 
       try {
@@ -579,9 +558,9 @@ export default function CampaignsTab({ campaigns, accounts, contacts, onRefresh 
   };
 
   // Calculations for real-time iteration stats panel — use _count from lightweight summaries
-  const matchedContact = contacts.find(c => c.listName.toLowerCase() === (contactListName || 'q4 prospecting').toLowerCase());
-  const totalC = (matchedContact?._count) || contacts.filter(c => c.listName.toLowerCase() === (contactListName || 'q4 prospecting').toLowerCase()).length || 500;
-  const activeCount = selectedSenders.length || (accounts.length > 0 ? accounts.length : 20);
+  const matchedContact = contacts.find(c => c.listName.toLowerCase() === (contactListName || '').toLowerCase());
+  const totalC = (matchedContact as any)?._count || 0;
+  const activeCount = selectedSenders.length || (accounts.length > 0 ? accounts.length : 1);
   
   // Cycle time (hours) = (totalContacts * customDelaySeconds) / activeAccounts / 3600
   const computedCycleTimeHours = ((totalC * customDelay) / Math.max(1, activeCount)) / 3600;
