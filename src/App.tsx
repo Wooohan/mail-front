@@ -113,6 +113,18 @@ export default function App() {
     setCampaigns([]);
   };
 
+  // Refetch relevant data whenever the active tab changes
+  useEffect(() => {
+    if (!authenticated) return;
+    // Fetch fresh data for the tab being switched to
+    if (activeTab === 'accounts') fetchAccounts();
+    if (activeTab === 'contacts' || activeTab === 'validator') fetchContacts();
+    if (activeTab === 'campaigns' || activeTab === 'dashboard') {
+      fetchCampaigns();
+      fetchContacts(); // Campaigns needs fresh contact lists for dropdowns
+    }
+  }, [activeTab, authenticated]);
+
   if (!authenticated) {
     return <AuthPage onAuthSuccess={handleAuthSuccess} />;
   }
@@ -150,12 +162,7 @@ export default function App() {
               return (
                 <button
                   key={item.id}
-                  onClick={() => {
-                    setActiveTab(item.id);
-                    if (item.id === 'accounts') fetchAccounts();
-                    if (item.id === 'contacts' || item.id === 'validator') fetchContacts();
-                    if (item.id === 'campaigns' || item.id === 'dashboard') fetchCampaigns();
-                  }}
+                  onClick={() => setActiveTab(item.id)}
                   className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 cursor-pointer ${
                     isActive
                       ? 'bg-[#F2EFFE] text-[#7C5CFC] font-semibold'
@@ -227,9 +234,6 @@ export default function App() {
                   onClick={() => {
                     setActiveTab(item.id);
                     setMobileMenuOpen(false);
-                    if (item.id === 'accounts') fetchAccounts();
-                    if (item.id === 'contacts' || item.id === 'validator') fetchContacts();
-                    if (item.id === 'campaigns' || item.id === 'dashboard') fetchCampaigns();
                   }}
                   className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all ${
                     isActive ? 'bg-[#F2EFFE] text-[#7C5CFC]' : 'text-gray-600 hover:bg-gray-50'
@@ -269,48 +273,50 @@ export default function App() {
       <div className="flex-1 flex flex-col justify-between min-h-screen">
         <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           
-          {activeTab === 'dashboard' && (
+          <div style={{ display: activeTab === 'dashboard' ? 'block' : 'none' }}>
             <DashboardTab
               accounts={accounts}
               contacts={contacts}
               campaigns={campaigns}
               onRefreshAll={() => { fetchAccounts(); fetchContacts(); fetchCampaigns(); }}
             />
-          )}
+          </div>
 
-          {activeTab === 'accounts' && (
+          <div style={{ display: activeTab === 'accounts' ? 'block' : 'none' }}>
             <AccountsTab
               accounts={accounts}
               loading={loadingAccounts}
               onRefresh={fetchAccounts}
               isAdmin={isAdmin()}
             />
-          )}
+          </div>
 
-          {activeTab === 'contacts' && (
+          <div style={{ display: activeTab === 'contacts' ? 'block' : 'none' }}>
             <ContactsTab
               onRefresh={fetchContacts}
             />
-          )}
+          </div>
 
-          {activeTab === 'campaigns' && (
+          <div style={{ display: activeTab === 'campaigns' ? 'block' : 'none' }}>
             <CampaignsTab
               campaigns={campaigns}
               accounts={accounts}
               contacts={contacts}
               onRefresh={fetchCampaigns}
             />
-          )}
+          </div>
 
-          {activeTab === 'validator' && (
+          <div style={{ display: activeTab === 'validator' ? 'block' : 'none' }}>
             <EmailValidationTab
               contacts={contacts}
               onRefreshContacts={fetchContacts}
             />
-          )}
+          </div>
 
-          {activeTab === 'admin' && currentUser?.role === 'admin' && (
-            <AdminPanel />
+          {currentUser?.role === 'admin' && (
+            <div style={{ display: activeTab === 'admin' ? 'block' : 'none' }}>
+              <AdminPanel />
+            </div>
           )}
 
         </main>
