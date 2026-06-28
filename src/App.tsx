@@ -49,12 +49,21 @@ export default function App() {
   const fetchContacts = async () => {
     setLoadingContacts(true);
     try {
-      // Fetch all contacts for Dashboard/Campaigns/Validator tabs using large limit
-      const res = await api('/api/contacts?limit=10000');
+      // Only fetch lightweight list summaries for Dashboard/Campaigns/Validator tabs
+      // The ContactsTab handles its own paginated fetching internally
+      const res = await api('/api/contacts/lists');
       if (res.ok) {
-        const data = await res.json();
-        // Server now returns { contacts, total, page, totalPages, limit }
-        setContacts(Array.isArray(data) ? data : (data.contacts || []));
+        const lists: { listName: string; count: number }[] = await res.json();
+        // Build minimal contact-like objects for components that only need list names + counts
+        // This avoids loading 50K+ contacts into memory
+        const summaryContacts: Contact[] = lists.map((l, idx) => ({
+          id: `summary-${idx}`,
+          email: '',
+          name: l.listName,
+          listName: l.listName,
+          _count: l.count,
+        } as Contact));
+        setContacts(summaryContacts);
       }
     } catch (err) {
       console.error('Failed fetching contacts:', err);
