@@ -3,8 +3,6 @@
 Vite + React SPA for Equinox Mail. It talks to the `equinox-mail-backend`
 service over HTTP using the `VITE_API_BASE_URL` environment variable.
 
-This app has **no Google AI Studio / Gemini dependency**.
-
 ## Run locally
 
 ```bash
